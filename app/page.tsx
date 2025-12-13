@@ -15,6 +15,7 @@ export default function Home() {
   const [showChapterModal, setShowChapterModal] = useState(false);
   const [showEditOutlineModal, setShowEditOutlineModal] = useState(false);
   const [showEditChapterModal, setShowEditChapterModal] = useState(false);
+  const [showAutoGenerateModal, setShowAutoGenerateModal] = useState(false);
   const [currentOutline, setCurrentOutline] = useState<any>(null);
   const [currentChapter, setCurrentChapter] = useState<any>(null);
   // 选中项目状态
@@ -24,6 +25,9 @@ export default function Home() {
   const [promptText, setPromptText] = useState('');
   const [contentText, setContentText] = useState('');
   const [thinkText, setThinkText] = useState('');
+  // 自动生成章节状态
+  const [autoGenerateCount, setAutoGenerateCount] = useState<number>(1);
+  const [generatingChapters, setGeneratingChapters] = useState<boolean>(false);
   
   // AI客户端
   const aiClient = useAIClient();
@@ -170,24 +174,156 @@ export default function Home() {
     }
   };
   
-  // 预留预处理Hook接口
+  // 预留预处理接口
   // 这里可以根据不同类型实现不同的预处理逻辑
-  const useOutlinePreprocessor = (outline: any) => {
+  const outlinePreprocessor = (outline: any) => {
     return {
-      // 可以返回预处理后的system prompt或messages
-      getSystemPrompt: () => `你是一位专业的小说家助手，正在处理大纲：${outline.name}（类型：${outline.type}）。请根据用户的请求生成符合该大纲设定的高质量内容。`,
-      // 可以添加更多预处理方法
-      processUserInput: (input: string) => input
+      // 返回预处理后的system messages数组
+      getSystemMessages: () => [
+        {
+          role: 'system' as const,
+          content: `你是一位专业的小说家助手，正在处理大纲：${outline.name}（类型：${outline.type}）。请根据用户的请求生成符合该大纲设定的高质量内容。`
+        },
+        {
+          role: 'system' as const,
+          content: `当前大纲的相关信息：\n- 名称：${outline.name}\n- 类型：${outline.type}\n`
+        }
+      ],
+      // 返回预处理后的user messages数组
+      processUserInput: (input: string) => [
+        {
+          role: 'user' as const,
+          content: input
+        }
+      ]
     };
   };
 
-  const useChapterPreprocessor = (chapter: any) => {
+  const chapterPreprocessor = (chapter: any) => {
     return {
-      getSystemPrompt: () => `你是一位专业的小说家助手，正在处理小说章节：第${chapter.number}章 ${chapter.title}。请根据用户的请求生成符合该章节风格和内容的高质量小说文本。`,
-      processUserInput: (input: string) => input
+      // 返回预处理后的system messages数组
+      getSystemMessages: () => [
+        {
+          role: 'system' as const,
+          content: `你是一位专业的小说家助手，正在处理小说章节：第${chapter.number}章 ${chapter.title}。请根据用户的请求生成符合该章节风格和内容的高质量小说文本。`
+        },
+        {
+          role: 'system' as const,
+          content: `你应当参考当前章节的大纲以及小说的所有设定进行编写，紧密贴合主题，生成一段长度在3000-5000字的小说文本。`
+        },
+        
+      ],
+      // 返回预处理后的user messages数组
+      processUserInput: (input: string) => {
+        // 构建所有大纲内容
+        const allOutlinesContent = settingsList.map(outline => {
+          return `- 名称：${outline.name}（类型：${outline.type}）\n内容：${outline.content || '无'}`;
+        }).join('\n\n');
+        
+        return [
+          {
+            role: 'user' as const,
+            content: `当前章节的相关信息：\n- 章节：第${chapter.number}章\n- 标题：${chapter.title}\n `
+          },
+          {
+            role: 'user' as const,
+            content: `小说所有设定：\n${allOutlinesContent}`
+          },
+          {
+            role: 'user' as const,
+            content: `当前章节的大纲：${input}`
+          }
+        ];
+      }
     };
   };
 
+  // 自动生成章节列表
+  const handleAutoGenerateChapters = async () => {
+    try {
+      if (!autoGenerateCount || autoGenerateCount < 1) {
+        alert('请输入有效的章节数量');
+        return;
+      }
+      
+      setGeneratingChapters(true);
+      
+      // 获取当前最大章节编号
+      let maxChapterNumber = 0;
+      if (chaptersList.length > 0) {
+        maxChapterNumber = Math.max(...chaptersList.map(chapter => chapter.number));
+      }
+      
+      // 准备AI消息，要求生成章节并直接使用create_chapter工具创建
+      const messages: OpenAIMessage[] = [
+        {
+          role: 'system',
+          content: `你是一位专业的小说家助手，请根据用户需求生成小说章节列表并使用create_chapter工具创建章节。
+          
+          你需要：
+          1. 分多次生成 ${autoGenerateCount} 个小说章节，每个章节包含标题和简短描述
+          2. 确保章节标题和描述内容丰富且有逻辑性
+          3. 章节编号应该从${maxChapterNumber + 1}开始依次递增
+          4. 每个章节需要提供title和prompt字段
+          5. prompt字段需要描述当前章节的内容和主题，内容应当包括关联任人物，发生地点，主要行为，包括3-5个核心情节点
+          6. 不同章节之间的内容和主题应当具备连贯性。如果是跨章节的关联，应当在prompt中说明和之前的哪些章节由情节关联
+          7. 你应当逐个生成章节，而不是一次生成所有的章节
+          
+          create_chapter工具说明：
+          - name: "create_chapter"
+          - 用于在数据库中创建章节
+          - 参数格式：{ "items": [{ "title": "章节标题", "prompt": "章节描述" }, ...] }`
+        },
+        {
+          role: 'system',
+          content: `你在调用工具时如果失败，需要尝试使用更短的请求（比如一次生成更少的章节，多次生成）来完成这个工作。`
+        },
+        {
+          role: 'user',
+          content: `当前已存在的所有大纲设定如下：${settingsList.map(o => `【${o.type}】${o.name}：${o.content || '暂无内容'}`).join('\n')}, 请结合以上全部大纲设定，确保生成的章节内容与之逻辑自洽、风格统一。`
+        },
+        // {
+        //   role: 'user',
+        //   content: `请生成${autoGenerateCount}个小说章节的列表，并使用create_chapter工具创建到数据库中。`
+        // }
+      ];
+      
+      // 使用AI客户端生成章节
+      const aiResponse = await aiClient.sendMessage(messages);
+      console.log('[AutoGenerate] 完整AI响应:', aiResponse);
+      
+      // 提取思考内容
+      const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
+      const thinkMatches = aiResponse.match(thinkRegex);
+      
+      if (thinkMatches) {
+        const lastThinkMatch = thinkMatches[thinkMatches.length - 1];
+        const thinkText = lastThinkMatch.replace(/<\/?think>/g, '');
+        
+        // 限制显示4行
+        const thinkLines = thinkText.split('\n');
+        const thinkContent = thinkLines.length > 4 
+          ? thinkLines.slice(0, 4).join('\n') + '...' 
+          : thinkText;
+        
+        setThinkText(thinkContent);
+      }
+      
+      // 刷新章节列表
+      fetchChapters();
+      
+      // 关闭模态框
+      setShowAutoGenerateModal(false);
+      
+      alert(`成功生成章节`);
+    } catch (error) {
+      console.error('自动生成章节失败:', error);
+      alert(error instanceof Error ? error.message : '自动生成章节失败，请检查控制台获取更多信息');
+    } finally {
+      setGeneratingChapters(false);
+    }
+  };
+  
   // 生成AI内容
   const handleGenerate = async () => {
     try {
@@ -204,36 +340,45 @@ export default function Home() {
       setGenerating(true);
       
       // 根据选中类型获取预处理Hook
-      let systemPrompt = '你是一位专业的小说家助手，根据用户的请求生成高质量的小说内容。';
-      let processedPrompt = promptText;
+      let systemMessages: OpenAIMessage[] = [
+        {
+          role: 'system',
+          content: '你是一位专业的小说家助手，根据用户的请求生成高质量的小说内容。'
+        }
+      ];
+      let userMessages: OpenAIMessage[] = [
+        {
+          role: 'user',
+          content: promptText
+        }
+      ];
       
       if (selectedOutline) {
         // 使用大纲预处理Hook
-        const outlineProcessor = useOutlinePreprocessor(selectedOutline);
-        systemPrompt = outlineProcessor.getSystemPrompt();
-        processedPrompt = outlineProcessor.processUserInput(promptText);
+        const outlineProcessor = outlinePreprocessor(selectedOutline);
+        systemMessages = outlineProcessor.getSystemMessages();
+        userMessages = outlineProcessor.processUserInput(promptText);
       } else if (selectedChapter) {
         // 使用章节预处理Hook
-        const chapterProcessor = useChapterPreprocessor(selectedChapter);
-        systemPrompt = chapterProcessor.getSystemPrompt();
-        processedPrompt = chapterProcessor.processUserInput(promptText);
+        const chapterProcessor = chapterPreprocessor(selectedChapter);
+        systemMessages = chapterProcessor.getSystemMessages();
+        userMessages = chapterProcessor.processUserInput(promptText);
       }
       
       // 准备AI消息（包含类型信息）
       const messages: OpenAIMessage[] = [
         {
           role: 'system',
-          content: systemPrompt
+          content: "当前用户在页面进行编辑，你只需要返回文本内容，不需要调用工具进行保存。"
         },
-        {
-          role: 'user',
-          content: processedPrompt
-        }
+        ...systemMessages,
+        ...userMessages
       ];
       
       // 使用流式响应
       await aiClient.sendMessageStream(messages, (chunk, isComplete) => {
         if (!isComplete) {
+          // console.log('[Stream] 收到内容:', chunk);
           // 分离think内容和普通内容
           let processedContent = chunk;
           let processedThink = '';
@@ -249,11 +394,6 @@ export default function Home() {
             // 从原始内容中移除所有think标签
             processedContent = chunk.replace(thinkRegex, '');
             
-            // 确保think内容最多显示4行
-            const thinkLines = processedThink.split('\n');
-            if (thinkLines.length > 4) {
-              processedThink = thinkLines.slice(0, 4).join('\n') + '...';
-            }
           }
           
           // 更新状态
@@ -420,6 +560,15 @@ export default function Home() {
                 </Button>
               </Tabs.TabPane>
               <Tabs.TabPane tab="章节" itemKey="chapters">
+                <Button 
+                  icon={<IconPlusCircle />} 
+                  type="primary" 
+                  size="small"
+                  className="w-full mb-3 rounded-md"
+                  onClick={() => setShowAutoGenerateModal(true)}
+                >
+                  自动生成章节列表
+                </Button>
                 <List
                   dataSource={chaptersList}
                   renderItem={(chapter) => (
@@ -487,6 +636,36 @@ export default function Home() {
                 </Button>
               </Tabs.TabPane>
             </Tabs>
+            
+            {/* 自动生成章节列表模态框 */}
+            <Modal
+              title="自动生成章节列表"
+              visible={showAutoGenerateModal}
+              onCancel={() => setShowAutoGenerateModal(false)}
+              footer={[
+                <Button key="cancel" onClick={() => setShowAutoGenerateModal(false)}>
+                  取消
+                </Button>,
+                <Button key="submit" type="primary" onClick={handleAutoGenerateChapters} disabled={generatingChapters}>
+                  {generatingChapters ? '生成中...' : '生成章节'}
+                </Button>
+              ]}
+            >
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">预期章节数量</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={autoGenerateCount}
+                    onChange={(e) => setAutoGenerateCount(Number(e.target.value) || 1)}
+                    placeholder="请输入章节数量"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </Modal>
           </Content>
         </Sider>
         
@@ -498,7 +677,7 @@ export default function Home() {
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-900">
                 {selectedOutline ? `大纲：${selectedOutline.name}` : 
-                 selectedChapter ? `章节：第${selectedChapter.number}章 ${selectedChapter.title}` : 
+                 selectedChapter ? `第${selectedChapter.number}章 ${selectedChapter.title}` : 
                  '请选择一个大纲或章节'}
               </h2>
               {selectedChapter && (
@@ -682,7 +861,7 @@ export default function Home() {
               field="number" 
               label="章节编号" 
               placeholder="请输入章节编号" 
-              rules={[{ required: true, message: '请输入章节编号' }, { type: 'number', message: '请输入有效的数字' }]} 
+              rules={[{ required: true, message: '请输入章节编号' }]} 
             />
             <div className="flex justify-end gap-2 mt-4">
               <Button type="tertiary" onClick={() => setShowEditChapterModal(false)}>取消</Button>

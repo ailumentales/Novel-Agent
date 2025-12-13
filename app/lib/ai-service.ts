@@ -44,7 +44,7 @@ async function callTool(toolCall: ToolCall): Promise<string> {
   try {
     // 使用MCP服务的通用工具调用方法
     const result = await mcpService.callTool(toolCall.name, toolCall.parameters);
-    return `计算结果: ${result}`;
+    return `计算结果: ${JSON.stringify(result)}`;
   } catch (error) {
     console.error('工具调用失败:', error);
     throw error;
@@ -133,40 +133,68 @@ export class AIService {
             // 解析工具调用参数
             const functionCall = toolCall.function;
             const toolName = functionCall.name;
-            const toolParams = JSON.parse(functionCall.arguments || '{}');
-
-            // 调用相应的工具
-            const toolResult = await callTool({
-              name: toolName,
-              parameters: toolParams
-            });
-
-            // 将工具调用结果添加到消息列表中
-            const toolMessage: OpenAIMessage = {
-              role: 'tool',
-              content: toolResult,
-              tool_call_id: toolCall.id
-            };
-
-            // 继续与AI对话，传递工具调用结果
-            messages.push(
-              {
+            const argumentsString = functionCall.arguments || '{}';
+            
+            console.log(`[MCP] 原始参数内容: ${argumentsString}`);
+            // 清理参数字符串
+            const cleanArguments = argumentsString
+              .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+              .trim();
+            console.log(`[MCP] 清理后的参数内容: ${cleanArguments}`);
+            let doinvoke = true;
+            // 严格解析JSON
+            let toolParams;
+            try {
+              toolParams = JSON.parse(cleanArguments);
+            } catch (parseError) {
+              doinvoke = false;
+              console.error('[MCP] JSON解析失败:', parseError);
+              // 返回错误信息给AI，使用思考内容格式
+              const errorResponse = `JSON解析失败：${JSON.stringify(parseError)}。\n\n请提供完整、有效的JSON格式参数，确保：\n1. 所有引号都是双引号\n2. 所有字符串和属性名都用引号包裹\n3. 没有缺失的逗号\n4. 对象和数组都正确闭合\n5. 没有无效的控制字符\n\n请重新生成符合要求的JSON参数。`;
+              messages.push({
                 role: 'assistant',
-                content: '',
-                tool_call: {
-                  id: toolCall.id,
-                  type: 'function',
-                  function: functionCall
-                }
-              },
-              toolMessage
-            );
+                content: errorResponse,
+                tool_call: toolCall
+              });
+              continue;
+            }
 
+            if (doinvoke) {
+              // 调用相应的工具
+              const toolResult = await callTool({
+                name: toolName,
+                parameters: toolParams
+              });
+
+              // 将工具调用结果添加到消息列表中
+              const toolMessage: OpenAIMessage = {
+                role: 'tool',
+                content: toolResult,
+                tool_call_id: toolCall.id
+              };
+               // 继续与AI对话，传递工具调用结果
+              messages.push(
+                {
+                  role: 'assistant',
+                  content: '',
+                  tool_call: {
+                    id: toolCall.id,
+                    type: 'function',
+                    function: functionCall
+                  }
+                },
+                toolMessage
+              );
+
+            }
+
+           
             // 递归调用sendMessage，获取AI对工具结果的响应
             return this.sendMessage(messages, options);
           }
         }
       }
+      console.log(`[MCP] 最终消息内容: ${message?.content || ''}`);
 
       return message?.content || '';
     } catch (error) {
@@ -243,44 +271,74 @@ export class AIService {
                   }
                 } else if (delta?.content) {
                   // 处理普通内容
-                  accumulatedContent += delta.content;
+                  accumulatedContent = delta.content;
                   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: accumulatedContent })}\n\n`));
                 }
 
                 // 检查是否完成了工具调用
                 if (currentToolCall && chunk.choices[0]?.finish_reason) {
+                   let doinvoke = true;
                   try {
                     // 解析工具调用参数
                     const toolName = currentToolCall.function.name;
-                    console.log(`[MCP] 工具调用参数原始内容: ${currentToolCall.function.arguments}`);
-                    // 清理参数字符串，去除可能的无效字符
-                    const cleanArguments = currentToolCall.function.arguments.trim();
+                    let argumentsString = currentToolCall.function.arguments;
+                    // console.log(`[MCP] 工具调用参数原始内容: ${argumentsString}`);
+                    
+                    // 清理参数字符串，去除控制字符
+                    const cleanArguments = argumentsString
+                      .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+                      .trim();
                     console.log(`[MCP] 清理后的参数内容: ${cleanArguments}`);
-                    const toolParams = JSON.parse(cleanArguments);
-
-                    // 调用相应的工具
-                    const toolResult = await callTool({
-                      name: toolName,
-                      parameters: toolParams
-                    });
-
-                    // 将工具调用结果发送给客户端
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ toolCallResult: toolResult })}\n\n`));
-
-                    // 更新消息列表，包含工具调用结果
-                    messages.push(
-                      {
+                    // 严格解析JSON
+                    let toolParams;
+                    try {
+                      toolParams = JSON.parse(cleanArguments);
+                    } catch (parseError) {
+                      console.error('[MCP] JSON解析失败:', parseError);
+                      doinvoke = false;
+                      
+                      // 返回明确的错误信息给AI，使用思考内容格式
+                      const errorResponse = `JSON解析失败：${JSON.stringify(parseError)}。\n\n请提供完整、有效的JSON格式参数，确保：\n1. 所有引号都是双引号\n2. 所有字符串和属性名都用引号包裹\n3. 没有缺失的逗号\n4. 对象和数组都正确闭合\n5. 没有无效的控制字符\n\n请重新生成符合要求的JSON参数。`;
+                      messages.push({
                         role: 'assistant',
                         content: '',
                         tool_call: currentToolCall
                       },
-                      {
+                     {
                         role: 'tool',
-                        content: toolResult,
+                        content: errorResponse,
                         tool_call_id: currentToolCall.id
-                      }
-                    );
+                      });
+                      continue;
+                    }
+                    console.log(`[MCP] 解析后的参数内容: ${JSON.stringify(toolParams)}`);
+                    
+                    if (doinvoke) {
+                      // 调用相应的工具
+                      // 调用相应的工具
+                      const toolResult = await callTool({
+                        name: toolName,
+                        parameters: toolParams
+                      });
 
+                      // 将工具调用结果发送给客户端
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ toolCallResult: toolResult })}\n\n`));
+
+                      // 更新消息列表，包含工具调用结果
+                      messages.push(
+                        {
+                          role: 'assistant',
+                          content: '',
+                          tool_call: currentToolCall
+                        },
+                        {
+                          role: 'tool',
+                          content: toolResult,
+                          tool_call_id: currentToolCall.id
+                        }
+                      );
+                    }
+                   
                     // 递归调用，获取AI对工具结果的响应
                     const followupStream = await client.chat.completions.create({
                       model: config.model!,
@@ -295,7 +353,7 @@ export class AIService {
                     for await (const followupChunk of followupStream) {
                       const followupDelta = followupChunk.choices[0]?.delta;
                       if (followupDelta?.content) {
-                        accumulatedContent += followupDelta.content;
+                        accumulatedContent = followupDelta.content;
                         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: accumulatedContent })}\n\n`));
                       }
                     }

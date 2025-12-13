@@ -44,7 +44,26 @@ const initializeDatabase = (): Database => {
     } else {
       // 如果不存在，创建新数据库
       const newDb: Database = {
-        outlines: [],
+        outlines: [
+          {
+            id: 1,
+            name: '故事大纲',
+            type: '大纲',
+            prompt: '请根据以下要求生成故事大纲：1. 明确故事主线；2. 划分三幕结构；3. 列出关键情节点。',
+            content: '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          {
+            id: 2,
+            name: '主要人物',
+            type: '人物',
+            prompt: '请根据以下要求生成主要人物设定：1. 列出主角与配角；2. 描述人物背景与动机；3. 明确人物关系。',
+            content: '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        ],
         chapters: [],
         nextOutlineId: 1,
         nextChapterId: 1
