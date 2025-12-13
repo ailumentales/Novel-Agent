@@ -2,6 +2,8 @@
 import { Layout, TextArea, List, Button, Card, Tabs, Modal, Form, Select } from '@douyinfe/semi-ui';
 import { IconPlusCircle, IconEdit, IconDelete } from '@douyinfe/semi-icons';
 import { useEffect, useState } from 'react';
+import { useAIClient } from './lib/ai-client';
+import { OpenAIMessage } from './lib/ai-service';
 
 const { Header, Sider, Content } = Layout;
 
@@ -21,6 +23,11 @@ export default function Home() {
   // 输入输出内容状态
   const [promptText, setPromptText] = useState('');
   const [contentText, setContentText] = useState('');
+  const [thinkText, setThinkText] = useState('');
+  
+  // AI客户端
+  const aiClient = useAIClient();
+  const [generating, setGenerating] = useState(false);
   
   // 从数据库获取数据
   useEffect(() => {
@@ -163,6 +170,107 @@ export default function Home() {
     }
   };
   
+  // 预留预处理Hook接口
+  // 这里可以根据不同类型实现不同的预处理逻辑
+  const useOutlinePreprocessor = (outline: any) => {
+    return {
+      // 可以返回预处理后的system prompt或messages
+      getSystemPrompt: () => `你是一位专业的小说家助手，正在处理大纲：${outline.name}（类型：${outline.type}）。请根据用户的请求生成符合该大纲设定的高质量内容。`,
+      // 可以添加更多预处理方法
+      processUserInput: (input: string) => input
+    };
+  };
+
+  const useChapterPreprocessor = (chapter: any) => {
+    return {
+      getSystemPrompt: () => `你是一位专业的小说家助手，正在处理小说章节：第${chapter.number}章 ${chapter.title}。请根据用户的请求生成符合该章节风格和内容的高质量小说文本。`,
+      processUserInput: (input: string) => input
+    };
+  };
+
+  // 生成AI内容
+  const handleGenerate = async () => {
+    try {
+      if (!promptText.trim()) {
+        alert('请先输入AI请求内容');
+        return;
+      }
+      
+      if (!selectedOutline && !selectedChapter) {
+        alert('请先选择一个大纲或章节');
+        return;
+      }
+      
+      setGenerating(true);
+      
+      // 根据选中类型获取预处理Hook
+      let systemPrompt = '你是一位专业的小说家助手，根据用户的请求生成高质量的小说内容。';
+      let processedPrompt = promptText;
+      
+      if (selectedOutline) {
+        // 使用大纲预处理Hook
+        const outlineProcessor = useOutlinePreprocessor(selectedOutline);
+        systemPrompt = outlineProcessor.getSystemPrompt();
+        processedPrompt = outlineProcessor.processUserInput(promptText);
+      } else if (selectedChapter) {
+        // 使用章节预处理Hook
+        const chapterProcessor = useChapterPreprocessor(selectedChapter);
+        systemPrompt = chapterProcessor.getSystemPrompt();
+        processedPrompt = chapterProcessor.processUserInput(promptText);
+      }
+      
+      // 准备AI消息（包含类型信息）
+      const messages: OpenAIMessage[] = [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: processedPrompt
+        }
+      ];
+      
+      // 使用流式响应
+      await aiClient.sendMessageStream(messages, (chunk, isComplete) => {
+        if (!isComplete) {
+          // 分离think内容和普通内容
+          let processedContent = chunk;
+          let processedThink = '';
+          
+          // 提取think内容（假设think内容用<think></think>标签包裹）
+          const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
+          const matches = [...chunk.matchAll(thinkRegex)];
+          
+          if (matches.length > 0) {
+            // 提取最后一个匹配的think内容
+            processedThink = matches[matches.length - 1][1];
+            
+            // 从原始内容中移除所有think标签
+            processedContent = chunk.replace(thinkRegex, '');
+            
+            // 确保think内容最多显示4行
+            const thinkLines = processedThink.split('\n');
+            if (thinkLines.length > 4) {
+              processedThink = thinkLines.slice(0, 4).join('\n') + '...';
+            }
+          }
+          
+          // 更新状态
+          setContentText(processedContent);
+          setThinkText(processedThink);
+        } else {
+          setGenerating(false);
+        }
+      });
+      
+    } catch (error) {
+      console.error('AI生成失败:', error);
+      alert('AI生成失败，请检查控制台获取更多信息');
+      setGenerating(false);
+    }
+  };
+
   // 保存内容
   const handleSaveContent = async () => {
     try {
@@ -258,6 +366,8 @@ export default function Home() {
                         // 加载数据到输入输出区域
                         setPromptText(setting.prompt || '');
                         setContentText(setting.content || '');
+                        // 清空思考内容
+                        setThinkText('');
                       }}
                     >
                       <div className="flex justify-between items-center w-full">
@@ -323,6 +433,8 @@ export default function Home() {
                         // 加载数据到输入输出区域
                         setPromptText(chapter.prompt || '');
                         setContentText(chapter.content || '');
+                        // 清空思考内容
+                        setThinkText('');
                       }}
                     >
                       <div className="flex justify-between items-center w-full">
@@ -400,8 +512,8 @@ export default function Home() {
             <Card className="mb-6 flex-shrink-0">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">输入请求</h3>
-                <Button type="primary" size="large">
-                  开始生成
+                <Button type="primary" size="large" onClick={handleGenerate} disabled={generating}>
+                  {generating ? '生成中...' : '开始生成'}
                 </Button>
               </div>
               <TextArea
@@ -418,13 +530,23 @@ export default function Home() {
                 <h3 className="text-lg font-semibold text-gray-800">AI输出</h3>
                 <Button type="primary" size="small" onClick={handleSaveContent}>保存</Button>
               </div>
-              <div className="flex-1 overflow-hidden" style={{ height: '100%' }}>
-                <TextArea
-                  placeholder="AI的输出内容将显示在这里..."
-                  style={{ width: '100%', height: '100%', resize: 'none' }}
-                  value={contentText}
-                  onChange={(value) => setContentText(value)}
-                />
+              <div className="flex-1 overflow-hidden" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                {/* Think内容显示区域 */}
+                {thinkText && (
+                  <div className="mb-4 p-4 bg-blue-50 border border-blue-100 rounded-md max-h-40 overflow-y-auto">
+                    <div className="text-sm font-medium text-blue-800 mb-2">思考内容:</div>
+                    <div className="text-sm text-blue-900 whitespace-pre-wrap">{thinkText}</div>
+                  </div>
+                )}
+                {/* 普通内容显示区域 */}
+                <div className="flex-1 overflow-hidden">
+                  <TextArea
+                    placeholder="AI的输出内容将显示在这里..."
+                    style={{ width: '100%', height: '100%'}}
+                    value={contentText}
+                    onChange={(value) => setContentText(value)}
+                  />
+                </div>
               </div>
             </Card>
           </Content>
