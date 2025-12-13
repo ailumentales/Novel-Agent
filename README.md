@@ -83,13 +83,6 @@ npm run build
 npm start
 ```
 
-### 部署到Vercel
-
-1. 登录Vercel控制台
-2. 导入项目仓库
-3. 配置环境变量
-4. 点击部署按钮
-
 ## 使用说明
 
 ### 章节管理
@@ -167,10 +160,6 @@ README.md            # 项目说明文档
 - AI调用日志显示在浏览器控制台
 - 工具调用日志以`[MCP]`前缀显示
 - 错误信息将在界面上显示并记录到控制台
-
-### 测试
-- 项目包含工具调用测试脚本：`test-batch-operations.ts`
-- 运行测试：`node test-batch-operations.ts`
 
 ## 许可证
 
