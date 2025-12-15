@@ -1,6 +1,7 @@
-import { AIService, createAIService, OpenAIMessage } from '@/app/lib/ai-service';
+import { createAIServiceV2 } from '@/app/lib/ai-service-v2';
+import { OpenAIMessage } from '@/app/lib/ai-service-v2';
 import { NextResponse } from 'next/server';
-import { outlineOperations } from '@/app/lib/database';
+import { Outline, outlineOperations } from '@/app/lib/database';
 
 export async function POST(request: Request) {
   try {
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     }
 
     // 创建AI服务实例
-    const aiService = createAIService();
+    const aiService = createAIServiceV2();
 
     // 从数据库获取所有大纲
     const settingsList = await outlineOperations.getAll();
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
     }
 
     // 构建所有大纲内容
-    const allOutlinesContent = settingsList.map((outline: any) => {
+    const allOutlinesContent = settingsList.map((outline: Outline) => {
       return `- 名称：${outline.name}（类型：${outline.type}）\n内容：${outline.content || '无'}`;
     }).join('\n\n');
 

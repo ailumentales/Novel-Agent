@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { OpenAIMessage } from './ai-service';
+import { OpenAIMessage } from './ai-service-v2';
 
 // AI客户端钩子，用于在前端组件中使用AI服务
 export function useAIClient() {

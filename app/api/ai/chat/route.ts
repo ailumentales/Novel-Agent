@@ -1,5 +1,5 @@
-import { AIService, createAIService } from '@/app/lib/ai-service';
-import { OpenAIMessage } from '@/app/lib/ai-service';
+import { createAIServiceV2 } from '@/app/lib/ai-service-v2';
+import { OpenAIMessage } from '@/app/lib/ai-service-v2';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '无效的消息格式' }, { status: 400 });
     }
 
-    const aiService = createAIService();
+    const aiService = createAIServiceV2();
 
     if (stream) {
       // 使用SSE流式响应

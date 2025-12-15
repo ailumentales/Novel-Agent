@@ -1,11 +1,16 @@
 
 import { ChatOpenAI } from '@langchain/openai';
-import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { RunnableSequence } from '@langchain/core/runnables';
 import { BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage } from '@langchain/core/messages';
-import { tool, StructuredTool } from '@langchain/core/tools';
+import { StructuredTool } from '@langchain/core/tools';
 import { createMCPService } from './mcp-service';
-import { OpenAIMessage } from './ai-service';
+
+// 定义简洁的OpenAI消息类型，用于客户端使用
+export interface OpenAIMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  tool_call?: Record<string, any>;
+  tool_call_id?: string;
+}
 
 // MCP工具调用服务实例
 const mcpService = createMCPService();
@@ -37,19 +42,19 @@ export class AIServiceV2 {
     for (const toolMetadata of mcpToolsMetadata) {
       try {
         // 直接创建工具对象
-        const newTool: any = {
+        const newTool = {
           name: toolMetadata.name,
           description: toolMetadata.description,
           schema: toolMetadata.parameters,
-          async invoke(input: any) {
+          async invoke(input: Record<string, any>) {
             const result = await mcpService.callTool(toolMetadata.name, input);
             return JSON.stringify(result);
           }
         };
-        this.tools.push(newTool);
+        this.tools.push(newTool as StructuredTool);
         console.log(`成功创建工具: ${toolMetadata.name}`);
       } catch (error) {
-        console.error(`创建工具 ${toolMetadata.name} 失败:`, error);
+        console.error(`创建工具 ${toolMetadata.name} 失败:`, error as Error);
       }
     }
 
@@ -81,9 +86,16 @@ export class AIServiceV2 {
           return new HumanMessage(msg.content);
         case 'assistant':
           if (msg.tool_call) {
+            // 确保tool_call格式符合LangChain要求，包含id字段
+            const toolCall = {
+              id: msg.tool_call.id || '',
+              name: msg.tool_call.function?.name || msg.tool_call.name || '',
+              args: msg.tool_call.function?.arguments || msg.tool_call.args || {},
+              type: 'tool_call' as const
+            };
             return new AIMessage({
               content: '',
-              tool_calls: [msg.tool_call]
+              tool_calls: [toolCall]
             });
           }
           return new AIMessage(msg.content);
@@ -118,11 +130,18 @@ export class AIServiceV2 {
       
       // 处理工具调用
       if (response.tool_calls && response.tool_calls.length > 0) {
+        console.log('工具调用的思考过程:', response.content);
         for (const toolCall of response.tool_calls) {
-          if (toolCall.type === 'tool_call' && toolCall.name) {
+          // 确保工具调用对象有id字段
+          const toolCallWithId = {
+            ...toolCall,
+            id: toolCall.id || `toolcall_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          };
+          if (toolCallWithId.type === 'tool_call' && toolCallWithId.name) {
             try {
-              const toolName = toolCall.name;
-              const toolParams = toolCall.args || {};
+              console.log('收到工具调用:', JSON.stringify(toolCallWithId));
+              const toolName = toolCallWithId.name;
+              const toolParams = toolCallWithId.args || {};
               
               // 调用工具
               const toolResult = await mcpService.callTool(toolName, toolParams);
@@ -132,12 +151,12 @@ export class AIServiceV2 {
                 {
                   role: 'assistant',
                   content: '',
-                  tool_call: toolCall
+                  tool_call: toolCallWithId
                 },
                 {
                   role: 'tool',
                   content: JSON.stringify(toolResult),
-                  tool_call_id: toolCall.id
+                  tool_call_id: toolCallWithId.id
                 }
               );
               
@@ -185,12 +204,11 @@ export class AIServiceV2 {
         : this.chatModel;
 
       // 创建SSE响应
-      const self = this; // 创建SSE响应
+      const self = this;
       return new Response(
         new ReadableStream({
           async start(controller) {
             const encoder = new TextEncoder();
-            let accumulatedContent = '';
 
             try {
               // 处理模型输出流
@@ -198,7 +216,6 @@ export class AIServiceV2 {
               
               for await (const chunk of stream) {
                 if (chunk.content) {
-                  accumulatedContent += chunk.content;
                   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: chunk.content })}\n\n`));
                 }
 
@@ -209,7 +226,6 @@ export class AIServiceV2 {
                       try {
                         const toolName = toolCall.name;
                         const toolParams = toolCall.args || {};
-                        
                         
                         // 调用工具
                         const toolResult = await mcpService.callTool(toolName, toolParams);
@@ -236,15 +252,13 @@ export class AIServiceV2 {
                         const followupStream = await modelWithTools.stream(followupBaseMessages);
                         
                         // 处理后续的响应流
-                        accumulatedContent = '';
                         for await (const followupChunk of followupStream) {
                           if (followupChunk.content) {
-                            accumulatedContent += followupChunk.content;
                             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: followupChunk.content })}\n\n`));
                           }
                         }
                       } catch (error) {
-                        console.error('工具调用处理失败:', error);
+                        console.error('工具调用处理失败:', error as Error);
                         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: '工具调用处理失败' })}\n\n`));
                       }
                     }
@@ -256,7 +270,7 @@ export class AIServiceV2 {
               controller.enqueue(encoder.encode('data: [DONE]\n\n'));
               controller.close();
             } catch (error) {
-              console.error('SSE流处理失败:', error);
+              console.error('SSE流处理失败:', error as Error);
               controller.error(error);
             }
           },
@@ -270,7 +284,7 @@ export class AIServiceV2 {
         }
       );
     } catch (error) {
-      console.error('创建SSE响应失败:', error);
+      console.error('创建SSE响应失败:', error as Error);
       
       return new Response(JSON.stringify({ error: 'AI请求失败' }), {
         status: 500,

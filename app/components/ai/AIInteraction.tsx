@@ -87,8 +87,8 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
 
       // 准备请求参数
       const apiUrl = itemType === 'outline' 
-        ? '/api/ai/v2/generate-outline-content'
-        : '/api/ai/v2/generate-chapter-content';
+        ? '/api/ai/generate-outline-content'
+        : '/api/ai/generate-chapter-content';
       
       const requestBody = {
         [itemType === 'outline' ? 'outlineId' : 'chapterId']: itemId,
@@ -176,7 +176,6 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const data = line.slice(6).trim();
-            console.log('原始数据:', data);
             
             if (data === '[DONE]') {
               break;
