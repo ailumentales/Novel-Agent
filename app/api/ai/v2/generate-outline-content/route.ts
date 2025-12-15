@@ -1,10 +1,16 @@
-import { AIService, createAIService, OpenAIMessage } from '@/app/lib/ai-service';
+import { createAIServiceV2 } from '@/app/lib/ai-service-v2';
+import { OpenAIMessage } from '@/app/lib/ai-service';
 import { NextResponse } from 'next/server';
 import { outlineOperations } from '@/app/lib/database';
 
 export async function POST(request: Request) {
   try {
     const { outlineId, promptText, oldContent } = await request.json();
+    // 将outlineId转换为数字类型
+    const id = parseInt(outlineId.toString(), 10);
+    if (isNaN(id)) {
+      return NextResponse.json({ error: '无效的大纲ID' }, { status: 400 });
+    }
 
     // 验证参数
     if (!outlineId) {
@@ -15,14 +21,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '请提供生成提示词' }, { status: 400 });
     }
 
-    // 创建AI服务实例
-    const aiService = createAIService();
+    // 创建AI服务实例 (使用v2版本)
+    const aiService = createAIServiceV2();
 
     // 从数据库获取所有大纲
     const settingsList = await outlineOperations.getAll();
 
     // 根据大纲ID获取当前大纲
-    const outline = settingsList.find(out => out.id === outlineId);
+    const outline = settingsList.find(out => out.id === id);
     if (!outline) {
       return NextResponse.json({ error: '未找到指定大纲' }, { status: 404 });
     }

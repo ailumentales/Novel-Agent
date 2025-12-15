@@ -176,22 +176,30 @@ export default function Home() {
                             }}
                           />
                           <Button 
-                            icon={<IconDelete />} 
-                            type="tertiary" 
-                            size="small"
-                            onClick={async () => {
-                              try {
-                                const response = await fetch(`/api/outlines/${setting.id}`, {
-                                  method: 'DELETE'
-                                });
-                                if (response.ok) {
-                                  fetchOutlines();
-                                }
-                              } catch (error) {
-                                console.error('删除设定失败:', error);
-                              }
-                            }}
-                          />
+                                icon={<IconDelete />} 
+                                type="tertiary" 
+                                size="small"
+                                onClick={async (e) => {
+                                  e.stopPropagation(); // 阻止事件冒泡到List.Item
+                                  if (confirm('确定要删除这个设定吗？')) {
+                                    try {
+                                      const response = await fetch(`/api/outlines/${setting.id}`, {
+                                        method: 'DELETE'
+                                      });
+                                      if (response.ok) {
+                                        fetchOutlines();
+                                        // 如果删除的是当前选中的大纲，清除选中状态
+                                        if (selectedOutline?.id === setting.id) {
+                                          setSelectedOutline(null);
+                                        }
+                                      }
+                                    } catch (error) {
+                                      console.error('删除设定失败:', error);
+                                      alert('删除设定失败，请稍后重试');
+                                    }
+                                  }
+                                }}
+                              />
                         </div>
                       </div>
                     </List.Item>
@@ -247,22 +255,30 @@ export default function Home() {
                             }}
                           />
                           <Button 
-                            icon={<IconDelete />} 
-                            type="tertiary" 
-                            size="small"
-                            onClick={async () => {
-                              try {
-                                const response = await fetch(`/api/chapters/${chapter.id}`, {
-                                  method: 'DELETE'
-                                });
-                                if (response.ok) {
-                                  fetchChapters();
+                              icon={<IconDelete />} 
+                              type="tertiary" 
+                              size="small"
+                              onClick={async (e) => {
+                                e.stopPropagation(); // 阻止事件冒泡到List.Item
+                                if (confirm('确定要删除这个章节吗？')) {
+                                  try {
+                                    const response = await fetch(`/api/chapters/${chapter.id}`, {
+                                      method: 'DELETE'
+                                    });
+                                    if (response.ok) {
+                                      fetchChapters();
+                                      // 如果删除的是当前选中的章节，清除选中状态
+                                      if (selectedChapter?.id === chapter.id) {
+                                        setSelectedChapter(null);
+                                      }
+                                    }
+                                  } catch (error) {
+                                    console.error('删除章节失败:', error);
+                                    alert('删除章节失败，请稍后重试');
+                                  }
                                 }
-                              } catch (error) {
-                                console.error('删除章节失败:', error);
-                              }
-                            }}
-                          />
+                              }}
+                            />
                         </div>
                       </div>
                     </List.Item>

@@ -87,12 +87,13 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
 
       // 准备请求参数
       const apiUrl = itemType === 'outline' 
-        ? '/api/ai/generate-outline-content'
-        : '/api/ai/generate-chapter-content';
+        ? '/api/ai/v2/generate-outline-content'
+        : '/api/ai/v2/generate-chapter-content';
       
       const requestBody = {
         [itemType === 'outline' ? 'outlineId' : 'chapterId']: itemId,
-        promptText
+        promptText,
+        oldContent: item?.content || ''
       };
 
       // 调用后端API获取流式响应
@@ -118,6 +119,51 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
       }
 
       let accumulatedContent = '';
+      let accumulatedThinkContent = '';
+      let inThinkMode = false;
+
+      const processContent = (content: string) => {
+        let currentContent = content;
+        let newThinkText = null;
+        let newContentText = '';
+
+        while (currentContent.length > 0) {
+          if (inThinkMode) {
+            // 寻找结束标签</think>
+            const endTagIndex = currentContent.indexOf('</think>');
+            if (endTagIndex !== -1) {
+              // 找到完整的思考内容，先更新到结束标签前的内容
+              accumulatedThinkContent += currentContent.slice(0, endTagIndex);
+              newThinkText = accumulatedThinkContent;
+              accumulatedThinkContent = '';
+              inThinkMode = false;
+              // 跳过结束标签
+              currentContent = currentContent.slice(endTagIndex + 8);
+            } else {
+              // 没有找到结束标签，将所有内容添加到思考内容并实时更新
+              accumulatedThinkContent += currentContent;
+              newThinkText = accumulatedThinkContent;
+              currentContent = '';
+            }
+          } else {
+            // 寻找开始标签<think>
+            const startTagIndex = currentContent.indexOf('<think>');
+            if (startTagIndex !== -1) {
+              // 找到开始标签，将标签前的内容添加到主内容
+              newContentText += currentContent.slice(0, startTagIndex);
+              // 跳过开始标签
+              currentContent = currentContent.slice(startTagIndex + 7);
+              inThinkMode = true;
+            } else {
+              // 没有找到开始标签，将所有内容添加到主内容
+              newContentText += currentContent;
+              currentContent = '';
+            }
+          }
+        }
+
+        return { newThinkText, newContentText };
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -125,22 +171,38 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        // 解析SSE格式的响应
-        const lines = chunk.split('\n').filter(line => line.trim());
+        const lines = chunk.split('\n\n');
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const data = line.slice(6);
+            const data = line.slice(6).trim();
+            console.log('原始数据:', data);
+            
+            if (data === '[DONE]') {
+              break;
+            }
+
             try {
               const parsedData = JSON.parse(data);
-              
-              if (parsedData.type === 'think') {
-                setThinkText(parsedData.content);
-              } else if (parsedData.type === 'content') {
-                accumulatedContent += parsedData.content;
-                setContentText(accumulatedContent);
-              } else if (parsedData.type === 'done') {
-                break;
+              if (parsedData.content) {
+                // 处理当前chunk的内容
+                const { newThinkText, newContentText } = processContent(parsedData.content);
+                
+                // 更新主内容
+                if (newContentText) {
+                  accumulatedContent += newContentText;
+                  setContentText(accumulatedContent);
+                }
+                
+                // 更新思考内容（实时更新，不需要等待完整的标签）
+                if (newThinkText !== null) {
+                  setThinkText(newThinkText);
+                }
+              }
+              // 支持toolCallResult，用于工具调用结果
+              if (parsedData.toolCallResult) {
+                // 可以根据需要处理工具调用结果
+                console.log('工具调用结果:', parsedData.toolCallResult);
               }
             } catch (error) {
               console.error('解析SSE数据失败:', error);
@@ -202,9 +264,9 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
               `大纲：${item.name}`) : 
             '请选择一个大纲或章节'}
         </h2>
-        {isChapter(item) && (
+        {item && (
           <p className="text-sm text-gray-500 mt-1">
-            章节编号：{item.number} | 字数：{item.wordCount}
+            {isChapter(item) ? `章节编号：${item.number} | ` : ''}字数：{contentText.length}
           </p>
         )}
       </div>

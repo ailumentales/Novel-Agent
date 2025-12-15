@@ -92,7 +92,7 @@ export class AIService {
     this.defaultConfig = {
       model: process.env.OPENAI_MODEL || 'deepseek-chat',
       temperature: 0.7,
-      maxTokens: 4096000,
+      maxTokens: 32768,
       enableTools: true,
       tools: openAITools,
       ...config
@@ -373,7 +373,7 @@ export class AIService {
               }
               
               // 发送结束信号
-              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+              controller.enqueue(encoder.encode('data: ["DONE"]\n\n'));
               controller.close();
             } catch (error) {
               console.error('SSE流处理失败:', error);

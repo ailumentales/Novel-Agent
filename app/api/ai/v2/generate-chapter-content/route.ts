@@ -1,10 +1,16 @@
-import { AIService, createAIService, OpenAIMessage } from '@/app/lib/ai-service';
+import { createAIServiceV2 } from '@/app/lib/ai-service-v2';
+import { OpenAIMessage } from '@/app/lib/ai-service';
 import { NextResponse } from 'next/server';
 import { outlineOperations, chapterOperations } from '@/app/lib/database';
 
 export async function POST(request: Request) {
   try {
     const { chapterId, promptText, oldContent } = await request.json();
+    // 将chapterId转换为数字类型
+    const id = parseInt(chapterId.toString(), 10);
+    if (isNaN(id)) {
+      return NextResponse.json({ error: '无效的章节ID' }, { status: 400 });
+    }
 
     // 验证参数
     if (!chapterId) {
@@ -15,8 +21,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '请提供生成提示词' }, { status: 400 });
     }
 
-    // 创建AI服务实例
-    const aiService = createAIService();
+    // 创建AI服务实例 (使用v2版本)
+    const aiService = createAIServiceV2();
 
     // 从数据库获取所有大纲
     const settingsList = await outlineOperations.getAll();
@@ -25,7 +31,7 @@ export async function POST(request: Request) {
     const chaptersList = await chapterOperations.getAll();
 
     // 根据章节ID获取当前章节
-    const chapter = chaptersList.find(ch => ch.id === chapterId);
+    const chapter = chaptersList.find(ch => ch.id === id);
     if (!chapter) {
       return NextResponse.json({ error: '未找到指定章节' }, { status: 404 });
     }
