@@ -98,6 +98,7 @@ const OutlineModal: React.FC<OutlineModalProps> = ({
           <Select.Option value="背景">背景</Select.Option>
           <Select.Option value="设定">设定</Select.Option>
           <Select.Option value="大纲">大纲</Select.Option>
+          <Select.Option value="风格">风格</Select.Option>
           <Select.Option value="其他">其他</Select.Option>
         </Form.Select>
       </Form>
