@@ -103,41 +103,48 @@ export default function Home() {
             <Content className="p-4">
               <Tabs defaultActiveKey="chapters" className="mb-4">
                 <Tabs.TabPane tab="知识库" itemKey="outline">
-                  <List
-                    dataSource={settingsList}
-                    renderItem={(setting) => (
-                      <List.Item 
-                        key={setting.id}
-                        className="cursor-pointer hover:bg-gray-50 rounded-md p-3 transition-colors border-l-2 border-transparent hover:border-purple-500"
-                        onClick={() => {
-                          // 选中大纲
-                          setSelectedOutline(setting);
-                          setSelectedChapter(null);
-                        }}
-                      >
-                        <div className="flex justify-between items-center w-full">
-                          <div className="flex flex-col gap-1 flex-1 min-w-0">
-                            <div className={`text-gray-800 font-medium truncate ${selectedOutline?.id === setting.id ? 'text-purple-600' : ''}`}>{setting.name}</div>
-                            <div className="text-xs text-gray-500">{setting.type}</div>
-                          </div>
-                          <div className="flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
-                            <Button 
-                              icon={<IconEdit />} 
-                              type="tertiary" 
-                              size="small"
-                              onClick={() => {
-                                console.log('点击编辑按钮，当前设定:', setting);
-                                setCurrentOutline(setting);
-                                setShowEditOutlineModal(true);
-                                console.log('编辑模态框已显示，currentOutline:', currentOutline);
-                              }}
-                            />
-                            <Button 
+                  <Button 
+                    icon={<IconPlusCircle />} 
+                    type="primary" 
+                    size="large"
+                    className="w-full mb-3 rounded-md"
+                    onClick={() => setShowOutlineModal(true)}
+                  >
+                    新增设定
+                  </Button>
+                  <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+                    <List
+                      dataSource={settingsList}
+                      renderItem={(setting) => (
+                        <List.Item 
+                          key={setting.id}
+                          className="cursor-pointer hover:bg-gray-50 rounded-md p-3 transition-colors border-l-2 border-transparent hover:border-purple-500"
+                          onClick={() => {
+                            setSelectedOutline(setting);
+                            setSelectedChapter(null);
+                          }}
+                        >
+                          <div className="flex justify-between items-center w-full">
+                            <div className="flex flex-col gap-1 flex-1 min-w-0">
+                              <div className={`text-gray-800 font-medium truncate ${selectedOutline?.id === setting.id ? 'text-purple-600' : ''}`}>{setting.name}</div>
+                              <div className="text-xs text-gray-500">{setting.type}</div>
+                            </div>
+                            <div className="flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
+                              <Button 
+                                icon={<IconEdit />} 
+                                type="tertiary" 
+                                size="small"
+                                onClick={() => {
+                                  setCurrentOutline(setting);
+                                  setShowEditOutlineModal(true);
+                                }}
+                              />
+                              <Button 
                                   icon={<IconDelete />} 
                                   type="tertiary" 
                                   size="small"
                                   onClick={async (e) => {
-                                    e.stopPropagation(); // 阻止事件冒泡到List.Item
+                                    e.stopPropagation();
                                     if (confirm('确定要删除这个设定吗？')) {
                                       try {
                                         const response = await fetch(`/api/outlines/${setting.id}`, {
@@ -145,7 +152,6 @@ export default function Home() {
                                         });
                                         if (response.ok) {
                                           fetchOutlines();
-                                          // 如果删除的是当前选中的大纲，清除选中状态
                                           if (selectedOutline?.id === setting.id) {
                                             setSelectedOutline(null);
                                           }
@@ -157,99 +163,96 @@ export default function Home() {
                                     }
                                   }}
                                 />
-                          </div>
-                        </div>
-                      </List.Item>
-                    )}
-                  />
-                  <Button 
-                    icon={<IconPlusCircle />} 
-                    type="tertiary" 
-                    size="small"
-                    className="w-full mt-3 rounded-md"
-                    onClick={() => setShowOutlineModal(true)}
-                  >
-                    新增设定
-                  </Button>
-                </Tabs.TabPane>
-                <Tabs.TabPane tab="章节" itemKey="chapters">
-                  <Button 
-                    icon={<IconPlusCircle />} 
-                    type="primary" 
-                    size="small"
-                    className="w-full mb-3 rounded-md"
-                    onClick={() => setShowAutoGenerateModal(true)}
-                  >
-                    自动生成章节列表
-                  </Button>
-                  <List
-                    dataSource={chaptersList}
-                    renderItem={(chapter) => (
-                      <List.Item 
-                        key={chapter.id}
-                        className="cursor-pointer hover:bg-gray-50 rounded-md p-3 transition-colors border-l-2 border-transparent hover:border-blue-500"
-                        onClick={() => {
-                          // 选中章节
-                          setSelectedChapter(chapter);
-                          setSelectedOutline(null);
-                        }}
-                      >
-                        <div className="flex justify-between items-center w-full">
-                          <div className="flex flex-col gap-1 flex-1 min-w-0">
-                            <div className={`text-gray-800 font-medium truncate ${selectedChapter?.id === chapter.id ? 'text-blue-600' : ''}`}>第{chapter.number}章 {chapter.title}</div>
-                            <div className="flex items-center justify-between">
-                              <div className="text-xs text-gray-500">字数: {chapter.wordCount}</div>
                             </div>
                           </div>
-                          <div className="flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
-                            <Button 
-                              icon={<IconEdit />} 
-                              type="tertiary" 
-                              size="small"
-                              onClick={() => {
-                                setCurrentChapter(chapter);
-                                setShowEditChapterModal(true);
-                              }}
-                            />
-                            <Button 
-                                icon={<IconDelete />} 
+                        </List.Item>
+                      )}
+                    />
+                  </div>
+                </Tabs.TabPane>
+                <Tabs.TabPane tab="章节" itemKey="chapters">
+                  <div className="flex flex-col gap-3 mb-3">
+                    <Button 
+                      icon={<IconPlusCircle />} 
+                      type="primary" 
+                      size="large"
+                      className="w-full rounded-md"
+                      onClick={() => setShowAutoGenerateModal(true)}
+                    >
+                      自动生成章节列表
+                    </Button>
+                   
+                  </div>
+                  <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+                     <List
+                      dataSource={chaptersList}
+                      renderItem={(chapter) => (
+                        <List.Item 
+                          key={chapter.id}
+                          className="cursor-pointer hover:bg-gray-50 rounded-md p-3 transition-colors border-l-2 border-transparent hover:border-blue-500"
+                          onClick={() => {
+                            setSelectedChapter(chapter);
+                            setSelectedOutline(null);
+                          }}
+                        >
+                          <div className="flex justify-between items-center w-full">
+                            <div className="flex flex-col gap-1 flex-1 min-w-0">
+                              <div className={`text-gray-800 font-medium truncate ${selectedChapter?.id === chapter.id ? 'text-blue-600' : ''}`}>第{chapter.number}章 {chapter.title}</div>
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs text-gray-500">字数: {chapter.wordCount}</div>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
+                              <Button 
+                                icon={<IconEdit />} 
                                 type="tertiary" 
                                 size="small"
-                                onClick={async (e) => {
-                                  e.stopPropagation(); // 阻止事件冒泡到List.Item
-                                  if (confirm('确定要删除这个章节吗？')) {
-                                    try {
-                                      const response = await fetch(`/api/chapters/${chapter.id}`, {
-                                        method: 'DELETE'
-                                      });
-                                      if (response.ok) {
-                                        fetchChapters();
-                                        // 如果删除的是当前选中的章节，清除选中状态
-                                        if (selectedChapter?.id === chapter.id) {
-                                          setSelectedChapter(null);
-                                        }
-                                      }
-                                    } catch (error) {
-                                      console.error('删除章节失败:', error);
-                                      alert('删除章节失败，请稍后重试');
-                                    }
-                                  }
+                                onClick={() => {
+                                  setCurrentChapter(chapter);
+                                  setShowEditChapterModal(true);
                                 }}
                               />
+                              <Button 
+                                  icon={<IconDelete />} 
+                                  type="tertiary" 
+                                  size="small"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (confirm('确定要删除这个章节吗？')) {
+                                      try {
+                                        const response = await fetch(`/api/chapters/${chapter.id}`, {
+                                          method: 'DELETE'
+                                        });
+                                        if (response.ok) {
+                                          fetchChapters();
+                                          if (selectedChapter?.id === chapter.id) {
+                                            setSelectedChapter(null);
+                                          }
+                                        }
+                                      } catch (error) {
+                                        console.error('删除章节失败:', error);
+                                        alert('删除章节失败，请稍后重试');
+                                      }
+                                    }
+                                  }}
+                                />
+                            </div>
                           </div>
-                        </div>
-                      </List.Item>
-                    )}
-                  />
-                  <Button 
-                    icon={<IconPlusCircle />} 
-                    type="tertiary" 
-                    size="small"
-                    className="w-full mt-3 rounded-md"
-                    onClick={() => setShowChapterModal(true)}
-                  >
-                    新增章节
-                  </Button>
+                        </List.Item>
+                      )}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-3 mb-3">
+                   <Button 
+                      icon={<IconPlusCircle />} 
+                      type="tertiary" 
+                      size="large"
+                      className="w-full rounded-md"
+                      onClick={() => setShowChapterModal(true)}
+                    >
+                      新增章节
+                    </Button>
+                    </div>
                 </Tabs.TabPane>
               </Tabs>
             </Content>

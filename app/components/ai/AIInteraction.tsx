@@ -1,5 +1,5 @@
 'use client';
-import { Card, TextArea, Button } from '@douyinfe/semi-ui';
+import { Card, TextArea, Button, Divider } from '@douyinfe/semi-ui';
 import { useState, useEffect } from 'react';
 
 // 从database.ts导入类型定义
@@ -276,7 +276,7 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
       </div>
       
       {/* 顶部输入框 - 固定最小高度 */}
-      <Card className="mb-6 flex-shrink-0" bodyStyle={{ height: 'calc(100% - 50px)' }}>
+      <Card className="mb-6 flex-shrink-0" bodyStyle={{ height: 'calc(100% - 50px)'}}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-800">输入请求</h3>
           <Button type="primary" size="large" onClick={handleGenerate} disabled={generating}>
@@ -292,11 +292,13 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
         />
       </Card>
       
+      <Divider />
+      
       {/* 底部输出区域 - 占满剩余高度 */}
       <Card className="flex-1 flex flex-col" bodyStyle={{ height: 'calc(100% - 50px)' }}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-800">AI输出</h3>
-          <Button type="primary" size="small" onClick={handleSaveContent} disabled={generating}>
+          <Button type="primary" size="large" onClick={handleSaveContent} disabled={generating}>
             保存
           </Button>
         </div>
