@@ -1,8 +1,8 @@
 'use client';
 import { Modal, Button, Form, Select } from '@douyinfe/semi-ui';
 
-// 从database.ts导入类型定义
 import { Outline } from '../../lib/database';
+import { useRef } from 'react';
 
 interface OutlineModalProps {
   visible: boolean;
@@ -18,11 +18,11 @@ const OutlineModal: React.FC<OutlineModalProps> = ({
   outline
 }) => {
   const isEditMode = !!outline;
+  const formApiRef = useRef<any>(null);
 
   const handleSubmit = async (values: Outline) => {
     try {
       if (isEditMode && outline?.id) {
-        // 编辑设定
         console.log('编辑设定提交的数据:', values);
         console.log('当前大纲ID:', outline.id);
         
@@ -40,7 +40,6 @@ const OutlineModal: React.FC<OutlineModalProps> = ({
           throw new Error(responseData.error || '编辑设定失败');
         }
       } else {
-        // 新增设定
         const response = await fetch('/api/outlines', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -66,13 +65,22 @@ const OutlineModal: React.FC<OutlineModalProps> = ({
       title={isEditMode ? "编辑设定" : "新增设定"}
       visible={visible}
       onCancel={onCancel}
+      onOk={async () => {
+        if (formApiRef.current) {
+          const values = formApiRef.current.getValues();
+          await handleSubmit(values);
+        }
+      }}
+      okText="提交"
+      cancelText="取消"
       width={500}
-      footer={null}
     >
       <Form
-        onSubmit={handleSubmit}
         layout="vertical"
         {...(outline && { initValues: outline })}
+        getFormApi={(formApi) => {
+          formApiRef.current = formApi;
+        }}
       >
         <Form.Input 
           field="name" 
@@ -92,10 +100,6 @@ const OutlineModal: React.FC<OutlineModalProps> = ({
           <Select.Option value="大纲">大纲</Select.Option>
           <Select.Option value="其他">其他</Select.Option>
         </Form.Select>
-        <div className="flex justify-end gap-2 mt-4">
-          <Button type="tertiary" onClick={onCancel}>取消</Button>
-          <Button type="primary" htmlType="submit">提交</Button>
-        </div>
       </Form>
     </Modal>
   );

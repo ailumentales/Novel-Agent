@@ -1,10 +1,9 @@
 'use client';
 import { Modal, Button, Form } from '@douyinfe/semi-ui';
         
-// 从database.ts导入类型定义
 import { Chapter } from '../../lib/database';
+import { useRef } from 'react';
 
-// 扩展Chapter接口以支持Form组件需要的属性
 interface FormChapter extends Chapter {
   wordCount?: string;
 }
@@ -23,11 +22,11 @@ const ChapterModal: React.FC<ChapterModalProps> = ({
   chapter
 }) => {
   const isEditMode = !!chapter;
+  const formApiRef = useRef<any>(null);
 
   const handleSubmit = async (values: FormChapter) => {
     try {
       if (isEditMode && chapter?.id) {
-        // 编辑章节
         const response = await fetch(`/api/chapters/${chapter.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -39,7 +38,6 @@ const ChapterModal: React.FC<ChapterModalProps> = ({
           throw new Error(errorData.error || '编辑章节失败');
         }
       } else {
-        // 新增章节
         const response = await fetch('/api/chapters', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -65,13 +63,22 @@ const ChapterModal: React.FC<ChapterModalProps> = ({
       title={isEditMode ? "编辑章节" : "新增章节"}
       visible={visible}
       onCancel={onCancel}
+      onOk={async () => {
+        if (formApiRef.current) {
+          const values = formApiRef.current.getValues();
+          await handleSubmit(values);
+        }
+      }}
+      okText="提交"
+      cancelText="取消"
       width={500}
-      footer={null}
     >
       <Form
-        onSubmit={handleSubmit}
         layout="vertical"
         {...(chapter && { initValues: chapter })}
+        getFormApi={(formApi) => {
+          formApiRef.current = formApi;
+        }}
       >
         <Form.Input 
           field="title" 
@@ -87,10 +94,6 @@ const ChapterModal: React.FC<ChapterModalProps> = ({
             rules={[{ required: true, message: '请输入章节编号' }]} 
           />
         )}
-        <div className="flex justify-end gap-2 mt-4">
-          <Button type="tertiary" onClick={onCancel}>取消</Button>
-          <Button type="primary" htmlType="submit">提交</Button>
-        </div>
       </Form>
     </Modal>
   );

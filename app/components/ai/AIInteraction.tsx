@@ -20,12 +20,14 @@ interface AIInteractionProps {
   itemType: ItemType;
   itemId: number | null;
   onUpdate?: () => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 const AIInteraction: React.FC<AIInteractionProps> = ({
   itemType,
   itemId,
-  onUpdate
+  onUpdate,
+  onLoadingChange
 }) => {
   const [item, setItem] = useState<ExtendedOutline | ExtendedChapter | null>(null);
   const [promptText, setPromptText] = useState('');
@@ -84,6 +86,8 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
     try {
       setGenerating(true);
       setThinkText('');
+      setContentText('');
+      onLoadingChange?.(true);
 
       // 准备请求参数
       const apiUrl = itemType === 'outline' 
@@ -214,6 +218,7 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
       alert(error instanceof Error ? error.message : '生成内容失败，请检查控制台获取更多信息');
     } finally {
       setGenerating(false);
+      onLoadingChange?.(false);
     }
   };
 
@@ -283,6 +288,7 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
           style={{ width: '100%', height: '100%', minHeight: '150px' }}
           value={promptText}
           onChange={setPromptText}
+          disabled={generating}
         />
       </Card>
       
@@ -290,7 +296,7 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
       <Card className="flex-1 flex flex-col" bodyStyle={{ height: 'calc(100% - 50px)' }}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-800">AI输出</h3>
-          <Button type="primary" size="small" onClick={handleSaveContent}>
+          <Button type="primary" size="small" onClick={handleSaveContent} disabled={generating}>
             保存
           </Button>
         </div>
@@ -309,6 +315,7 @@ const AIInteraction: React.FC<AIInteractionProps> = ({
               style={{ width: '100%', height: '100%'}}
               value={contentText}
               onChange={setContentText}
+              disabled={generating}
             />
           </div>
         </div>
