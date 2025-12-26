@@ -76,8 +76,10 @@ export async function* streamOutlineContent(outlineId: number, promptText: strin
 
     for await (const chunk of result) {
         const [step, content] = Object.entries(chunk)[0];
-        // console.log(`step: ${step}`);
-        // console.log(`content: ${JSON.stringify(content, null, 2)}`);
-        yield content;
+        // console.log(`origin chunk: ${JSON.stringify(content.type, null, 2)}`);
+        // console.log(`origin chunk: ${JSON.stringify(content.name, null, 2)}`);
+        if (content.type === "ai") {
+            yield content;
+        } 
     }
 }

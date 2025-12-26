@@ -31,6 +31,7 @@ export async function POST(request: Request) {
           for await (const chunk of contentStream) {
             // 直接处理chunk.content
             if (chunk && chunk.content) {
+              // console.log('原始chunk:', chunk);
               // 处理不同类型的内容
               let content = '';
               if (typeof chunk.content === 'string') {

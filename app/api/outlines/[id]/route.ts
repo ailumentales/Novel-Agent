@@ -22,12 +22,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const idNum = parseInt(id);
     const data = await request.json();
-    console.log('收到更新大纲请求:', { id: idNum, data });
+    // console.log('收到更新大纲请求:', { id: idNum, data });
     const result = await outlineOperations.update(idNum, data);
-    console.log('大纲更新结果:', result);
+    // console.log('大纲更新结果:', result);
     return NextResponse.json({ success: true, changes: result.changes });
   } catch (error) {
-    console.error('更新大纲失败:', error);
+    // console.error('更新大纲失败:', error);
     return NextResponse.json({ error: '更新大纲失败' }, { status: 500 });
   }
 }

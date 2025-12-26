@@ -6,7 +6,7 @@ export function createAgentModel() {
         apiKey: process.env.OPENAI_API_KEY,
         modelName: process.env.OPENAI_MODEL || 'deepseek-chat',
         temperature: 0.7,
-        maxTokens: 32768,
+        maxTokens: 8192,
         timeout: 60000,
     });
 }
@@ -16,7 +16,7 @@ export function createStreamingAgentModel() {
         apiKey: process.env.OPENAI_API_KEY,
         modelName: process.env.OPENAI_MODEL || 'deepseek-chat',
         temperature: 0.7,
-        maxTokens: 32768,
+        maxTokens: 8192,
         streaming: true,
     });
 }

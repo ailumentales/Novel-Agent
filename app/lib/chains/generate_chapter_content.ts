@@ -118,8 +118,8 @@ export async function* streamChapterContent(chapterId: number, promptText: strin
 
     for await (const chunk of result) {
         const [step, content] = Object.entries(chunk)[0];
-        // console.log(`step: ${step}`);
-        // console.log(`content: ${JSON.stringify(content, null, 2)}`);
-        yield content;
+        if (content.type === "ai") {
+            yield content;
+        }
     }
 }
