@@ -65,7 +65,7 @@ const initializeDatabase = (): Database => {
           }
         ],
         chapters: [],
-        nextOutlineId: 1,
+        nextOutlineId: 3,
         nextChapterId: 1
       };
       // 保存数据库到文件
